@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Museum AR Virtual – Taman Tulip</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+
+  <script>
+    AFRAME.registerComponent('interaksi-museum', {
+      schema: {
+        namaArtefak: { type: 'string', default: 'Artefak' },
+        tahun:       { type: 'string', default: '?' },
+        deskripsi:   { type: 'string', default: '-' },
+        warnaSemula: { type: 'string', default: '#1A4A8A' }
+      },
+
+      init: function () {
+        var grup = this.el;   
+        var data = this.data;
+        var sudahDiklik = false;
+
+        function getAnaks() {
+          return grup.querySelectorAll('.bisa-diklik');
+        }
+
+        grup.addEventListener('mouseenter', function () {
+          if (sudahDiklik) return;
+         
+          grup.setAttribute('animation__pulse', {
+            property: 'scale',
+            to: '1.1 1.1 1.1',
+            dur: 500,
+            easing: 'easeInOutSine',
+            loop: true,
+            dir: 'alternate'
+          });
+         
+          getAnaks().forEach(function(c) {
+            c.setAttribute('opacity', '0.65');
+          });
+        });
+
+        grup.addEventListener('mouseleave', function () {
+          if (sudahDiklik) return;
+          grup.removeAttribute('animation__pulse');
+          grup.setAttribute('scale', '1 1 1');
+          getAnaks().forEach(function(c) {
+            c.setAttribute('opacity', '1');
+          });
+        });
+
+        grup.addEventListener('click', function () {
+          if (sudahDiklik) return;
+          sudahDiklik = true;
+
+          grup.removeAttribute('animation__pulse');
+
+          getAnaks().forEach(function(c) {
+            c.setAttribute('opacity', '1');
+
+            var tag = c.tagName.toLowerCase();
+            if (tag !== 'a-cone') {
+              c.setAttribute('color', '#5B9BD5');
+            }
+          });
+
+          grup.setAttribute('animation__besar', {
+            property: 'scale',
+            to: '1.4 1.4 1.4',
+            dur: 350,
+            easing: 'easeOutBack'
+          });
+
+          grup.setAttribute('animation__putar', {
+            property: 'rotation',
+            to: '0 360 0',
+            dur: 1000,
+            easing: 'easeInOutQuad'
+          });
+
+          var panel = grup.querySelector('.panel-info');
+          if (panel) panel.setAttribute('visible', 'true');
+
+          showDrawer(data.namaArtefak, data.tahun, data.deskripsi);
+        });
+
+        this.resetFn = function() {
+          sudahDiklik = false;
+          grup.setAttribute('scale', '1 1 1');
+          grup.setAttribute('rotation', '0 0 0');
+          grup.removeAttribute('animation__besar');
+          grup.removeAttribute('animation__putar');
+          grup.removeAttribute('animation__pulse');
+
+          getAnaks().forEach(function(c) {
+            c.setAttribute('opacity', '1');
+            var tag = c.tagName.toLowerCase();
+            if (tag === 'a-box') c.setAttribute('color', data.warnaSemula);
+            if (tag === 'a-sphere') c.setAttribute('color', data.warnaSemula);
+            if (tag === 'a-cylinder') {
+
+              var pos = c.getAttribute('position');
+              var isKelopak = pos && parseFloat(pos.y || (typeof pos === 'string' ? pos.split(' ')[1] : 0)) > 1;
+              c.setAttribute('color', isKelopak ? data.warnaSemula : '#1D9E75');
+            }
+          });
+
+
+          var panel = grup.querySelector('.panel-info');
+          if (panel) panel.setAttribute('visible', 'false');
+        };
+      },
+
+      reset: function() { if (this.resetFn) this.resetFn(); }
+    });
+
+    function showDrawer(nama, tahun, deskripsi) {
+      var d = document.getElementById('info-drawer');
+      document.getElementById('drawer-nama').textContent = nama;
+      document.getElementById('drawer-tahun').textContent = tahun;
+      document.getElementById('drawer-desk').textContent = deskripsi;
+      d.classList.add('open');
+    }
+
+    function closeDrawer() {
+      document.getElementById('info-drawer').classList.remove('open');
+    }
+
+    function resetSemua() {
+      document.querySelectorAll('[interaksi-museum]').forEach(function(el) {
+        if (el.components['interaksi-museum']) el.components['interaksi-museum'].reset();
+      });
+      closeDrawer();
+    }
+
+    function togglePanduan() {
+      var p = document.getElementById('panduan-overlay');
+      p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
+    }
+  </script>
+
+  <style>
+    :root {
+      --biru-tua:   #0D2B5E;
+      --biru-utama: #1A4A8A;
+      --biru-mid:   #2E6DB4;
+      --biru-muda:  #5B9BD5;
+      --biru-pucat: #A8C8EE;
+      --biru-glass: rgba(26, 74, 138, 0.18);
+      --putih:      #F4F8FF;
+      --emas:       #C8A96E;
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-body:    'DM Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: #0a1628;
+      overflow: hidden;
+    }
+
+    #tulip-deco {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    #hud {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 15;
+      pointer-events: none;
+    }
+
+    .hud-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px 10px;
+      background: linear-gradient(180deg, rgba(13,43,94,0.85) 0%, transparent 100%);
+    }
+
+    .hud-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tulip-icon {
+      width: 28px;
+      height: 28px;
+    }
+
+    .hud-title {
+      font-family: var(--font-display);
+      font-size: 15px;
+      color: var(--putih);
+      letter-spacing: 0.5px;
+    }
+
+    .hud-title span {
+      color: var(--biru-pucat);
+      font-style: italic;
+    }
+
+    .hud-status {
+      font-size: 11px;
+      color: var(--biru-pucat);
+      background: rgba(91,155,213,0.15);
+      border: 1px solid rgba(91,155,213,0.3);
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    #ui-bawah {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 15;
+      padding: 0 20px 38px;
+      pointer-events: none;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      pointer-events: all;
+    }
+
+    .btn-ar {
+      height: 52px;
+      border-radius: 26px;
+      border: none;
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.2s;
+      -webkit-tap-highlight-color: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      letter-spacing: 0.3px;
+    }
+
+    .btn-ar:active { transform: scale(0.93); }
+
+    .btn-panduan {
+      flex: 0 0 52px;
+      width: 52px;
+      background: rgba(91,155,213,0.15);
+      border: 1px solid rgba(91,155,213,0.4);
+      color: var(--biru-pucat);
+      font-size: 18px;
+      backdrop-filter: blur(8px);
+    }
+
+    .btn-reset {
+      flex: 1;
+      background: linear-gradient(135deg, var(--biru-mid), var(--biru-tua));
+      color: var(--putih);
+      box-shadow: 0 4px 20px rgba(46,109,180,0.4);
+      border: 1px solid rgba(91,155,213,0.3);
+    }
+
+    #info-drawer {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 20;
+      transform: translateY(100%);
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      pointer-events: none;
+    }
+
+    #info-drawer.open {
+      transform: translateY(0);
+      pointer-events: all;
+    }
+
+    .drawer-inner {
+      background: linear-gradient(180deg, rgba(13,30,70,0.96) 0%, rgba(10,22,40,0.98) 100%);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(91,155,213,0.3);
+      border-radius: 24px 24px 0 0;
+      padding: 20px 24px 110px;
+      position: relative;
+    }
+
+    .drawer-tulip {
+      position: absolute;
+      right: 20px;
+      top: 16px;
+      opacity: 0.12;
+    }
+
+    .drawer-handle {
+      width: 36px; height: 4px;
+      background: rgba(91,155,213,0.4);
+      border-radius: 2px;
+      margin: 0 auto 16px;
+    }
+
+    .drawer-label {
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      color: var(--biru-muda);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .drawer-nama {
+      font-family: var(--font-display);
+      font-size: 22px;
+      color: var(--putih);
+      margin-bottom: 4px;
+    }
+
+    .drawer-tahun {
+      font-size: 13px;
+      color: var(--emas);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .drawer-tahun::before {
+      content: '';
+      display: inline-block;
+      width: 20px; height: 1px;
+      background: var(--emas);
+    }
+
+    .drawer-desk {
+      font-size: 14px;
+      color: var(--biru-pucat);
+      line-height: 1.6;
+    }
+
+    .drawer-close {
+      position: absolute;
+      top: 20px; right: 20px;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: rgba(91,155,213,0.15);
+      border: 1px solid rgba(91,155,213,0.3);
+      color: var(--biru-pucat);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    #panduan-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(5,15,40,0.75);
+      z-index: 30;
+      align-items: flex-end;
+      justify-content: center;
+      backdrop-filter: blur(6px);
+    }
+
+    .panduan-kotak {
+      background: linear-gradient(160deg, #0f2350 0%, #091628 100%);
+      border: 1px solid rgba(91,155,213,0.3);
+      border-radius: 28px 28px 0 0;
+      padding: 28px 24px 50px;
+      width: 100%;
+      max-width: 480px;
+      position: relative;
+    }
+
+    .panduan-tulip-deco {
+      position: absolute;
+      top: -30px; right: 24px;
+      opacity: 0.5;
+    }
+
+    .panduan-kotak h2 {
+      font-family: var(--font-display);
+      font-size: 20px;
+      color: var(--putih);
+      margin-bottom: 20px;
+    }
+
+    .panduan-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .p-icon {
+      width: 36px; height: 36px;
+      border-radius: 12px;
+      background: rgba(91,155,213,0.15);
+      border: 1px solid rgba(91,155,213,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .p-text { flex: 1; }
+    .p-text strong {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--putih);
+      margin-bottom: 2px;
+    }
+    .p-text span {
+      font-size: 12px;
+      color: var(--biru-pucat);
+      line-height: 1.5;
+    }
+
+    .btn-mengerti {
+      width: 100%;
+      height: 52px;
+      margin-top: 20px;
+      border-radius: 26px;
+      border: none;
+      background: linear-gradient(135deg, var(--biru-mid), var(--biru-tua));
+      color: var(--putih);
+      font-family: var(--font-body);
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      letter-spacing: 0.3px;
+    }
+
+    .petal {
+      position: fixed;
+      width: 6px; height: 10px;
+      border-radius: 50% 50% 50% 0;
+      background: rgba(91,155,213,0.35);
+      pointer-events: none;
+      z-index: 4;
+      animation: fallingPetal linear infinite;
+    }
+
+    @keyframes fallingPetal {
+      0%   { transform: translateY(-20px) rotate(0deg);   opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 0.6; }
+      100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="petals"></div>
+
+
+  <svg id="tulip-deco" viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+    
+    <g opacity="0.18">
+     
+      <line x1="48" y1="844" x2="48" y2="680" stroke="#5B9BD5" stroke-width="2"/>
+      <line x1="80" y1="844" x2="80" y2="700" stroke="#5B9BD5" stroke-width="2"/>
+      <line x1="20" y1="844" x2="20" y2="720" stroke="#5B9BD5" stroke-width="2"/>
+     
+      <path d="M48 740 Q30 720 20 700 Q38 710 48 730Z" fill="#2E6DB4"/>
+      <path d="M80 760 Q95 740 105 720 Q90 730 80 745Z" fill="#2E6DB4"/>
+    
+      <path d="M20 720 Q14 695 20 675 Q26 695 32 720Z" fill="#5B9BD5"/>
+      <path d="M26 718 Q20 690 26 668 Q32 690 38 718Z" fill="#7BB5E8"/>
+      <path d="M32 718 Q38 693 44 673 Q48 695 42 720Z" fill="#5B9BD5"/>
+      
+      <path d="M44 680 Q38 655 44 635 Q50 655 56 680Z" fill="#5B9BD5"/>
+      <path d="M50 678 Q44 650 50 628 Q56 650 62 678Z" fill="#A8C8EE"/>
+      <path d="M56 680 Q62 655 68 635 Q70 658 62 680Z" fill="#5B9BD5"/>
+      
+      <path d="M70 700 Q64 675 70 655 Q76 675 82 700Z" fill="#5B9BD5"/>
+      <path d="M76 698 Q70 670 76 648 Q82 670 88 698Z" fill="#7BB5E8"/>
+      <path d="M82 700 Q88 675 94 655 Q96 678 88 700Z" fill="#5B9BD5"/>
+    </g>
+
+    <g opacity="0.15" transform="translate(290, 0)">
+      <line x1="48" y1="240" x2="48" y2="100" stroke="#5B9BD5" stroke-width="2"/>
+      <line x1="75" y1="240" x2="75" y2="120" stroke="#5B9BD5" stroke-width="2"/>
+      <path d="M48 180 Q33 162 24 145 Q40 152 48 168Z" fill="#2E6DB4"/>
+      <path d="M75 195 Q88 178 96 161 Q84 168 75 182Z" fill="#2E6DB4"/>
+     
+      <path d="M24 145 Q18 122 24 103 Q30 122 36 145Z" fill="#5B9BD5"/>
+      <path d="M30 143 Q24 118 30 97 Q36 118 42 143Z" fill="#A8C8EE"/>
+      <path d="M36 145 Q42 122 48 103 Q50 125 42 145Z" fill="#5B9BD5"/>
+
+      <path d="M60 120 Q54 97 60 78 Q66 97 72 120Z" fill="#5B9BD5"/>
+      <path d="M66 118 Q60 93 66 72 Q72 93 78 118Z" fill="#7BB5E8"/>
+      <path d="M72 120 Q78 97 84 78 Q86 100 78 120Z" fill="#5B9BD5"/>
+    </g>
+
+    <line x1="0" y1="500" x2="390" y2="300" stroke="#2E6DB4" stroke-width="0.5" opacity="0.12"/>
+    <line x1="0" y1="550" x2="390" y2="350" stroke="#2E6DB4" stroke-width="0.3" opacity="0.08"/>
+  </svg>
+
+  <div id="hud">
+    <div class="hud-bar">
+      <div class="hud-logo">
+  
+        <svg class="tulip-icon" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+          <line x1="14" y1="28" x2="14" y2="14" stroke="#5B9BD5" stroke-width="1.5"/>
+          <path d="M8 14 Q6 8 8 3 Q11 8 14 14Z" fill="#5B9BD5"/>
+          <path d="M11 13 Q9 7 11 1 Q14 7 17 13Z" fill="#A8C8EE"/>
+          <path d="M14 14 Q17 8 20 3 Q22 9 18 14Z" fill="#5B9BD5"/>
+        </svg>
+        <span class="hud-title">Museum <span>🌷Tulip🌷</span> AR</span>
+      </div>
+      <div class="hud-status">🌸 3 Artefak</div>
+    </div>
+  </div>
+
+
+  <a-scene background="color: #0a1a35">
+
+    <a-entity camera look-controls>
+      <a-entity
+        cursor="rayOrigin: mouse"
+        raycaster="objects: .bisa-diklik">
+      </a-entity>
+    </a-entity>
+
+    <a-light type="ambient" color="#a8c8ee" intensity="0.5"></a-light>
+    <a-light type="directional" position="2 4 3" color="#c8e4ff" intensity="0.9"></a-light>
+    <a-light type="point" position="0 3 -3" color="#5B9BD5" intensity="0.4"></a-light>
+
+ 
+    <a-plane
+      position="0 0 -4"
+      rotation="-90 0 0"
+      width="12" height="12"
+      color="#0d2b5e"
+      opacity="0.8">
+    </a-plane>
+
+    <a-sphere position="-2 2 -4" radius="0.05" color="#5B9BD5" opacity="0.6"
+      animation="property: position; to: -2 2.5 -4; dur: 2000; loop: true; dir: alternate; easing: easeInOutSine">
+    </a-sphere>
+    <a-sphere position="2.5 1.5 -3.5" radius="0.04" color="#A8C8EE" opacity="0.5"
+      animation="property: position; to: 2.5 2 -3.5; dur: 2500; loop: true; dir: alternate; easing: easeInOutSine">
+    </a-sphere>
+    <a-sphere position="0 3 -5" radius="0.06" color="#2E6DB4" opacity="0.4"
+      animation="property: position; to: 0 3.6 -5; dur: 3000; loop: true; dir: alternate; easing: easeInOutSine">
+    </a-sphere>
+
+    <a-entity id="artefak-1" position="-1.6 0.5 -3.5"
+      interaksi-museum="namaArtefak: Kelopak Tulip Biru; tahun: Musim Semi; deskripsi: Kelopak bunga tulip biru yang mekar sempurna. Tersusun dari lima helai kelopak simetris membentuk mahkota bunga yang anggun.; warnaSemula: #1A4A8A">
+
+      <a-box class="bisa-diklik"
+        position="0 0.35 0.18"
+        width="0.28" height="0.55" depth="0.08"
+        rotation="-18 0 0"
+        color="#FF00FF">
+      </a-box>
+      
+      <a-box class="bisa-diklik"
+        position="-0.16 0.32 0.12"
+        width="0.26" height="0.52" depth="0.08"
+        rotation="-15 -35 8"
+        color="#EE82EE">
+      </a-box>
+
+      <a-box class="bisa-diklik"
+        position="0.16 0.32 0.12"
+        width="0.26" height="0.52" depth="0.08"
+        rotation="-15 35 -8"
+        color="#FF00FF">
+      </a-box>
+  
+      <a-box class="bisa-diklik"
+        position="-0.18 0.3 -0.08"
+        width="0.25" height="0.50" depth="0.08"
+        rotation="-10 -70 10"
+        color="#EE82EE">
+      </a-box>
+    
+      <a-box class="bisa-diklik"
+        position="0.18 0.3 -0.08"
+        width="0.25" height="0.50" depth="0.08"
+        rotation="-10 70 -10"
+        color="#FF00FF">
+      </a-box>
+    
+      <a-cylinder
+        position="0 0.05 0"
+        radius="0.1" height="0.12"
+        color="#FF5EE">
+      </a-cylinder>
+
+      <a-entity class="panel-info" visible="false" position="0 1.3 0">
+        <a-plane color="#00BFFF" opacity="0.92" width="1.8" height="0.55" look-at="[camera]"></a-plane>
+        <a-text value="Kelopak Tulip Biru\nMusim Semi · Bunga" align="center" color="#A8C8EE" width="2.6" position="0 0 0.01" look-at="[camera]"></a-text>
+      </a-entity>
+    </a-entity>
+
+    <a-entity id="artefak-2" position="1.6 0 -3.5"
+      interaksi-museum="namaArtefak: Tangkai Tulip; tahun: Belanda 1600-an; deskripsi: Tangkai tulip tegak lurus dengan dua helai daun melengkung. Tangkai kuat ini mampu menopang kelopak bunga hingga 30 hari.; warnaSemula: #1D9E75">
+
+      <a-cylinder class="bisa-diklik"
+        position="0 0.7 0"
+        radius="0.045" height="1.4"
+        color="#1D9E75">
+      </a-cylinder>
+
+      <a-box class="bisa-diklik"
+        position="-0.18 0.55 0"
+        width="0.38" height="0.08" depth="0.05"
+        rotation="0 0 -35"
+        color="#0F6E56">
+      </a-box>
+
+      <a-cone class="bisa-diklik"
+        position="-0.34 0.47 0"
+        radius-bottom="0.05" radius-top="0.001" height="0.14"
+        rotation="0 0 55"
+        color="#0F6E56">
+      </a-cone>
+
+      <a-box class="bisa-diklik"
+        position="0.18 0.38 0"
+        width="0.38" height="0.08" depth="0.05"
+        rotation="0 0 35"
+        color="#1D9E75">
+      </a-box>
+     
+      <a-cone class="bisa-diklik"
+        position="0.34 0.3 0"
+        radius-bottom="0.05" radius-top="0.001" height="0.14"
+        rotation="0 0 -55"
+        color="#1D9E75">
+      </a-cone>
+
+      <a-sphere
+        position="0 0 0"
+        radius="0.09"
+        color="#085041">
+      </a-sphere>
+
+      <a-entity class="panel-info" visible="false" position="0 1.8 0">
+        <a-plane color="#0D2B5E" opacity="0.92" width="1.8" height="0.55" look-at="[camera]"></a-plane>
+        <a-text value="Tangkai Tulip\nBelanda 1600-an · Botani" align="center" color="#A8C8EE" width="2.6" position="0 0 0.01" look-at="[camera]"></a-text>
+      </a-entity>
+    </a-entity>
+
+
+    <a-entity id="artefak-3" position="0 0 -4.8"
+      interaksi-museum="namaArtefak: Setangkai Tulip; tahun: Taman Belanda; deskripsi: Bunga tulip lengkap — dari akar hingga kelopak. Simbol kemakmuran Belanda abad ke-17 saat Tulip Mania mengguncang ekonomi Eropa.; warnaSemula: #5B9BD5">
+
+      <a-sphere
+        position="0 0.07 0"
+        radius="0.1"
+        color="#0D2B5E">
+      </a-sphere>
+
+      <a-cylinder class="bisa-diklik"
+        position="0 0.75 0"
+        radius="0.04" height="1.3"
+        color="#1D9E75">
+      </a-cylinder>
+
+      <a-box class="bisa-diklik"
+        position="-0.2 0.6 0"
+        width="0.42" height="0.07" depth="0.04"
+        rotation="0 0 -40"
+        color="#0F6E56">
+      </a-box>
+      <a-cone
+        position="-0.38 0.5 0"
+        radius-bottom="0.04" radius-top="0.001" height="0.13"
+        rotation="0 0 50"
+        color="#0F6E56">
+      </a-cone>
+
+      <a-box class="bisa-diklik"
+        position="0.2 0.42 0"
+        width="0.42" height="0.07" depth="0.04"
+        rotation="0 0 40"
+        color="#1D9E75">
+      </a-box>
+      <a-cone
+        position="0.38 0.33 0"
+        radius-bottom="0.04" radius-top="0.001" height="0.13"
+        rotation="0 0 -50"
+        color="#1D9E75">
+      </a-cone>
+
+      <a-sphere class="bisa-diklik"
+        position="0 1.55 0"
+        radius="0.22"
+        scale="1 1.4 1"
+        color="#FFFAF0">
+      </a-sphere>
+
+      <a-box class="bisa-diklik"
+        position="-0.14 1.75 0.12"
+        width="0.22" height="0.42" depth="0.07"
+        rotation="-22 -30 6"
+        color="#FF00FF">
+      </a-box>
+      
+      <a-box class="bisa-diklik"
+        position="0.14 1.75 0.12"
+        width="0.22" height="0.42" depth="0.07"
+        rotation="-22 30 -6"
+        color="#FF00FF">
+      </a-box>
+     
+      <a-box class="bisa-diklik"
+        position="0 1.8 0.14"
+        width="0.2" height="0.44" depth="0.07"
+        rotation="-25 0 0"
+        color="#EE82EE">
+      </a-box>
+      
+      <a-box class="bisa-diklik"
+        position="-0.15 1.72 -0.1"
+        width="0.21" height="0.40" depth="0.07"
+        rotation="-12 -65 8"
+        color="#EE82EE">
+      </a-box>
+      
+      <a-box class="bisa-diklik"
+        position="0.15 1.72 -0.1"
+        width="0.21" height="0.40" depth="0.07"
+        rotation="-12 65 -8"
+        color="#EE82EE">
+      </a-box>
+
+      <a-entity class="panel-info" visible="false" position="0 2.4 0">
+        <a-plane color="#0D2B5E" opacity="0.92" width="1.8" height="0.55" look-at="[camera]"></a-plane>
+        <a-text value="Setangkai Tulip\nTaman Belanda · Flora" align="center" color="#A8C8EE" width="2.6" position="0 0 0.01" look-at="[camera]"></a-text>
+      </a-entity>
+    </a-entity>
+
+  </a-scene>
+ 
+  <div id="info-drawer">
+    <div class="drawer-inner">
+    
+      <svg class="drawer-tulip" width="60" height="80" viewBox="0 0 60 80">
+        <line x1="30" y1="80" x2="30" y2="40" stroke="#5B9BD5" stroke-width="2"/>
+        <path d="M18 40 Q14 26 18 14 Q24 26 30 40Z" fill="#5B9BD5"/>
+        <path d="M24 38 Q20 22 24 8 Q30 22 36 38Z" fill="#A8C8EE"/>
+        <path d="M30 40 Q36 26 42 14 Q46 28 38 40Z" fill="#5B9BD5"/>
+      </svg>
+
+      <button class="drawer-close" onclick="closeDrawer()">✕</button>
+      <div class="drawer-handle"></div>
+      <div class="drawer-label">🌷 Info Artefak</div>
+      <div class="drawer-nama" id="drawer-nama">—</div>
+      <div class="drawer-tahun" id="drawer-tahun">—</div>
+      <div class="drawer-desk" id="drawer-desk">—</div>
+    </div>
+  </div>
+
+  <div id="ui-bawah">
+    <div class="btn-row">
+      <button class="btn-ar btn-panduan" onclick="togglePanduan()">❓</button>
+      <button class="btn-ar btn-reset" onclick="resetSemua()">
+        ↺ &nbsp;Reset Semua
+      </button>
+    </div>
+  </div>
+
+  <div id="panduan-overlay" onclick="togglePanduan()">
+    <div class="panduan-kotak" onclick="event.stopPropagation()">
+      <!-- Tulip dekorasi -->
+      <svg class="panduan-tulip-deco" width="50" height="65" viewBox="0 0 60 80">
+        <line x1="30" y1="80" x2="30" y2="40" stroke="#5B9BD5" stroke-width="2"/>
+        <path d="M18 40 Q14 26 18 14 Q24 26 30 40Z" fill="#5B9BD5"/>
+        <path d="M24 38 Q20 22 24 8 Q30 22 36 38Z" fill="#A8C8EE"/>
+        <path d="M30 40 Q36 26 42 14 Q46 28 38 40Z" fill="#5B9BD5"/>
+      </svg>
+
+      <h2>Cara Menjelajah Museum</h2>
+
+      <div class="panduan-item">
+        <div class="p-icon">👆</div>
+        <div class="p-text">
+          <strong>Sentuh Artefak</strong>
+          <span>Ketuk objek 3D untuk melihat informasi lengkap artefak di panel bawah.</span>
+        </div>
+      </div>
+      <div class="panduan-item">
+        <div class="p-icon">✨</div>
+        <div class="p-text">
+          <strong>Visual Feedback</strong>
+          <span>Objek akan berpendar saat diarahkan dan berubah warna saat disentuh.</span>
+        </div>
+      </div>
+      <div class="panduan-item">
+        <div class="p-icon">↺</div>
+        <div class="p-text">
+          <strong>Reset</strong>
+          <span>Tekan tombol Reset Semua untuk mengembalikan semua artefak ke posisi awal.</span>
+        </div>
+      </div>
+
+      <button class="btn-mengerti" onclick="togglePanduan()">Mulai Jelajah</button>
+    </div>
+  </div>
+
+  <script>
+   
+    (function() {
+      var container = document.getElementById('petals');
+      for (var i = 0; i < 12; i++) {
+        var p = document.createElement('div');
+        p.className = 'petal';
+        p.style.left = (Math.random() * 100) + 'vw';
+        p.style.animationDuration = (6 + Math.random() * 8) + 's';
+        p.style.animationDelay = (Math.random() * 10) + 's';
+        p.style.opacity = (0.1 + Math.random() * 0.25);
+        p.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)';
+        container.appendChild(p);
+      }
+    })();
+  </script>
+
+</body>
+</html>
